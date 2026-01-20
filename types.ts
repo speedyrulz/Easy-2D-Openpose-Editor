@@ -10,6 +10,7 @@ export interface Keypoint {
   y: number;
   visible: boolean;
   locked: boolean;
+  anchored?: boolean; // If true, this point is used as pivot for transforms
   color: string; // Hex color for UI
   rgb: [number, number, number]; // RGB for export
 }

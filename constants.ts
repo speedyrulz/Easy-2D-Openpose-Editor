@@ -45,6 +45,7 @@ export const INITIAL_KEYPOINTS: Keypoint[] = KEYPOINT_NAMES.map((name, i) => ({
   y: 0,
   visible: true,
   locked: false,
+  anchored: false,
   color: rgbToHex(...JOINT_COLORS_RGB[i]),
   rgb: JOINT_COLORS_RGB[i]
 }));

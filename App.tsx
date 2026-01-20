@@ -277,6 +277,13 @@ const App: React.FC = () => {
     ));
   }, [recordHistory]);
 
+  const handleToggleAnchor = useCallback((id: number) => {
+    recordHistory();
+    setKeypoints(prev => prev.map(kp => 
+      kp.id === id ? { ...kp, anchored: !kp.anchored } : kp
+    ));
+  }, [recordHistory]);
+
   // Global Toggle Handlers
   const handleToggleAllLock = useCallback(() => {
     recordHistory();
@@ -495,6 +502,17 @@ const App: React.FC = () => {
     };
   };
 
+  const getPivotPoint = (kps: Keypoint[]) => {
+      const anchors = kps.filter(k => k.anchored);
+      if (anchors.length > 0) {
+          const sumX = anchors.reduce((acc, k) => acc + k.x, 0);
+          const sumY = anchors.reduce((acc, k) => acc + k.y, 0);
+          return { x: sumX / anchors.length, y: sumY / anchors.length };
+      }
+      const center = getPoseCenter(kps);
+      return center || { x: size.width / 2, y: size.height / 2 };
+  };
+
   // Flip Handlers
   const handleFlipHorizontal = useCallback(() => {
     recordHistory();
@@ -539,9 +557,7 @@ const App: React.FC = () => {
     const baseKeypoints = transformBaseRef.current.keypoints;
     const baseConstraints = transformBaseRef.current.constraints;
 
-    const center = getPoseCenter(baseKeypoints);
-    const centerX = center ? center.x : size.width / 2;
-    const centerY = center ? center.y : size.height / 2;
+    const { x: centerX, y: centerY } = getPivotPoint(baseKeypoints);
 
     const newKeypoints = baseKeypoints.map(kp => ({
       ...kp,
@@ -571,9 +587,7 @@ const App: React.FC = () => {
     if (!transformBaseRef.current) return;
 
     const baseKeypoints = transformBaseRef.current.keypoints;
-    const center = getPoseCenter(baseKeypoints);
-    const cx = center ? center.x : size.width / 2;
-    const cy = center ? center.y : size.height / 2;
+    const { x: cx, y: cy } = getPivotPoint(baseKeypoints);
 
     // Convert degrees to radians
     const radZ = (rotateZ * Math.PI) / 180;
@@ -781,6 +795,7 @@ const App: React.FC = () => {
               onToggleConstraint={handleToggleConstraint}
               limbThickness={limbThickness}
               snapToEdges={snapToEdges}
+              onToggleAnchor={handleToggleAnchor}
             />
           </div>
         </div>

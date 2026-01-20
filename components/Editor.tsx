@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Keypoint, Connection } from '../types';
 import { CONNECTIONS, LIMB_PAIRS } from '../constants';
-import { Lock, Unlock, Eye, EyeOff, Link as LinkIcon, Unlink } from 'lucide-react';
+import { Lock, Unlock, Eye, EyeOff, Link as LinkIcon, Unlink, Pin, PinOff } from 'lucide-react';
 
 interface EditorProps {
   width: number;
@@ -23,6 +23,7 @@ interface EditorProps {
   onToggleConstraint: (p1: number, p2: number) => void;
   limbThickness: number;
   snapToEdges?: boolean;
+  onToggleAnchor: (id: number) => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -44,7 +45,8 @@ export const Editor: React.FC<EditorProps> = ({
   onBgTransformChange,
   onToggleConstraint,
   limbThickness,
-  snapToEdges = false
+  snapToEdges = false,
+  onToggleAnchor
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
@@ -456,6 +458,34 @@ export const Editor: React.FC<EditorProps> = ({
                     />
                 </g>
               )}
+
+              {/* Anchor Icon Overlay (Shows even if locked, but placed differently) */}
+              {kp.anchored && !kp.locked && (
+                 <g className="pointer-events-none" style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.5))' }}>
+                    <circle cx={kp.x + 8} cy={kp.y - 8} r={7} fill="#18181b" stroke="#facc15" strokeWidth="1" />
+                    <Pin 
+                        x={kp.x + 8 - 4.5} 
+                        y={kp.y - 8 - 4.5} 
+                        size={9} 
+                        color="#facc15" 
+                        strokeWidth={2.5}
+                    />
+                 </g>
+              )}
+               {/* If both locked and anchored, stack them? Or just shift anchor icon */}
+              {kp.anchored && kp.locked && (
+                 <g className="pointer-events-none" style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.5))' }}>
+                    <circle cx={kp.x - 8} cy={kp.y - 8} r={7} fill="#18181b" stroke="#facc15" strokeWidth="1" />
+                    <Pin 
+                        x={kp.x - 8 - 4.5} 
+                        y={kp.y - 8 - 4.5} 
+                        size={9} 
+                        color="#facc15" 
+                        strokeWidth={2.5}
+                    />
+                 </g>
+              )}
+
             </g>
           )
         ))}
@@ -482,6 +512,15 @@ export const Editor: React.FC<EditorProps> = ({
                      <span className="text-[10px] text-zinc-600 shrink-0">#{kp.id}</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                     <button 
+                       onClick={(e) => { 
+                           onToggleAnchor(kp.id); 
+                       }}
+                       className={`p-1.5 rounded hover:bg-zinc-700 transition-colors ${kp.anchored ? 'text-yellow-400 bg-yellow-400/10' : 'text-zinc-500 hover:text-zinc-300'}`}
+                       title={kp.anchored ? "Unpin Anchor" : "Pin as Anchor"}
+                     >
+                       {kp.anchored ? <Pin size={14} /> : <PinOff size={14} />}
+                     </button>
                      <button 
                        onClick={(e) => { 
                            // Global click handler will close menu

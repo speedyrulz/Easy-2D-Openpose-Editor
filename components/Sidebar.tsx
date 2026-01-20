@@ -125,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [spinValue, setSpinValue] = useState(0);
   const [widthValue, setWidthValue] = useState(100);
 
-  // Refs to track values at start of drag
+  // Refs to track values at start of drag/edit
   const startScaleRef = useRef(1);
   const startSpinRef = useRef(0);
   const startWidthRef = useRef(100);
@@ -136,15 +136,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onScaleStart();
   };
 
-  const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
+  const handleScaleChange = (val: number) => {
     setScaleValue(val);
     const start = startScaleRef.current || 1;
+    // Avoid division by zero
+    if (start === 0) return;
     onScale(val / start);
-  };
-
-  const handleScalePointerUp = () => {
-    setScaleValue(1);
   };
 
   // Transform Handlers
@@ -154,23 +151,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onTransformStart();
   };
 
-  const handleSpinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
+  const handleSpinChange = (val: number) => {
     setSpinValue(val);
     const delta = val - startSpinRef.current;
-    onTransform(delta, 1); // width factor 1 means no change
+    onTransform(delta, 1); 
   };
 
-  const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
+  const handleWidthChange = (val: number) => {
     setWidthValue(val);
     const start = startWidthRef.current || 100;
+    if (start === 0) return;
     const factor = val / start;
-    onTransform(0, factor); // spin delta 0 means no change
-  };
-
-  const handleTransformEnd = () => {
-    onTransformEnd();
+    onTransform(0, factor); 
   };
 
   const resetSliders = () => {
@@ -267,9 +259,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="space-y-3">
              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Appearance</h3>
              <div>
-               <label className="text-xs text-zinc-400 mb-1 flex justify-between">
+               <label className="text-xs text-zinc-400 mb-1 flex justify-between items-center">
                  <span>Limb Thickness</span>
-                 <span>{limbThickness}px</span>
+                 <div className="flex items-center gap-1">
+                    <input 
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={limbThickness}
+                        onChange={(e) => onLimbThicknessChange(parseInt(e.target.value) || 1)}
+                        className="w-12 bg-transparent text-right text-xs text-zinc-300 focus:outline-none focus:text-white border-b border-transparent focus:border-blue-500 transition-colors"
+                    />
+                    <span className="text-zinc-500 text-xs">px</span>
+                 </div>
                </label>
                <input 
                   type="range" 
@@ -395,7 +397,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="bg-zinc-800/50 p-2 rounded-lg border border-zinc-700/50 space-y-2">
                  <div className="flex justify-between items-center text-xs text-zinc-400">
                     <span className="flex items-center gap-1"><ImageIcon size={12}/> Opacity</span>
-                    <span>{Math.round(bgOpacity * 100)}%</span>
+                    <div className="flex items-center gap-1">
+                        <input 
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={Math.round(bgOpacity * 100)}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                if (!isNaN(val)) onBgOpacityChange(Math.max(0, Math.min(100, val)) / 100);
+                            }}
+                            className="w-10 bg-transparent text-right text-xs text-zinc-300 focus:outline-none focus:text-white border-b border-transparent focus:border-blue-500 transition-colors"
+                        />
+                        <span>%</span>
+                    </div>
                  </div>
                  <input 
                     type="range" 
@@ -428,7 +443,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="space-y-3">
            <div className="flex justify-between items-center">
              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Pose Transform</h3>
-             {(spinValue !== 0 || widthValue !== 100) && (
+             {(spinValue !== 0 || widthValue !== 100 || scaleValue !== 1) && (
                <button 
                 onClick={resetSliders}
                 className="text-xs bg-zinc-800 hover:bg-zinc-700 text-blue-400 border border-zinc-700 hover:border-zinc-600 px-2.5 py-1 rounded shadow-sm transition-all flex items-center gap-1.5"
@@ -465,17 +480,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
              <div className="space-y-2">
                 <div className="flex justify-between text-xs text-zinc-400">
                   <span className="flex items-center gap-1"><Maximize size={12}/> Scale</span>
-                  <span>{Math.round(scaleValue * 100)}%</span>
+                  <div className="flex items-center gap-1">
+                    <input 
+                        type="number"
+                        step="1"
+                        value={Math.round(scaleValue * 100)}
+                        onFocus={handleScaleStart}
+                        onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) handleScaleChange(val / 100);
+                        }}
+                        className="w-12 bg-transparent text-right text-xs text-zinc-300 focus:outline-none focus:text-white border-b border-transparent focus:border-blue-500 transition-colors"
+                    />
+                    <span>%</span>
+                  </div>
                 </div>
                 <input 
                   type="range" 
-                  min="0.5" 
-                  max="2.0" 
+                  min="0.1" 
+                  max="3.0" 
                   step="0.01" 
                   value={scaleValue}
                   onPointerDown={handleScaleStart}
-                  onChange={handleScaleChange}
-                  onPointerUp={handleScalePointerUp}
+                  onChange={(e) => handleScaleChange(parseFloat(e.target.value))}
                   className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
              </div>
@@ -484,7 +511,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
              <div className="space-y-2">
                 <div className="flex justify-between text-xs text-zinc-400">
                   <span className="flex items-center gap-1"><RotateCw size={12}/> Spin (2D)</span>
-                  <span>{Math.round(spinValue)}°</span>
+                  <div className="flex items-center gap-1">
+                    <input 
+                        type="number"
+                        min="-180"
+                        max="180"
+                        value={Math.round(spinValue)}
+                        onFocus={() => handleTransformStart('spin')}
+                        onBlur={onTransformEnd}
+                        onKeyDown={(e) => { if (e.key === 'Enter') onTransformEnd(); }}
+                        onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) handleSpinChange(val);
+                        }}
+                        className="w-12 bg-transparent text-right text-xs text-zinc-300 focus:outline-none focus:text-white border-b border-transparent focus:border-purple-500 transition-colors"
+                    />
+                    <span>°</span>
+                  </div>
                 </div>
                 <input 
                   type="range" 
@@ -493,8 +536,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   step="1" 
                   value={spinValue}
                   onPointerDown={() => handleTransformStart('spin')}
-                  onChange={handleSpinChange}
-                  onPointerUp={handleTransformEnd}
+                  onChange={(e) => handleSpinChange(parseFloat(e.target.value))}
+                  onPointerUp={onTransformEnd}
                   className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
                 />
              </div>
@@ -503,7 +546,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
              <div className="space-y-2">
                 <div className="flex justify-between text-xs text-zinc-400">
                   <span className="flex items-center gap-1"><MoveHorizontal size={12}/> Perspective Width</span>
-                  <span>{Math.round(widthValue)}%</span>
+                  <div className="flex items-center gap-1">
+                    <input 
+                        type="number"
+                        min="10"
+                        max="200"
+                        value={Math.round(widthValue)}
+                        onFocus={() => handleTransformStart('width')}
+                        onBlur={onTransformEnd}
+                        onKeyDown={(e) => { if (e.key === 'Enter') onTransformEnd(); }}
+                        onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) handleWidthChange(val);
+                        }}
+                        className="w-12 bg-transparent text-right text-xs text-zinc-300 focus:outline-none focus:text-white border-b border-transparent focus:border-orange-500 transition-colors"
+                    />
+                    <span>%</span>
+                  </div>
                 </div>
                 <input 
                   type="range" 
@@ -512,8 +571,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   step="1" 
                   value={widthValue}
                   onPointerDown={() => handleTransformStart('width')}
-                  onChange={handleWidthChange}
-                  onPointerUp={handleTransformEnd}
+                  onChange={(e) => handleWidthChange(parseFloat(e.target.value))}
+                  onPointerUp={onTransformEnd}
                   className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
                 />
              </div>
