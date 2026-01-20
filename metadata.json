@@ -1,0 +1,5 @@
+{
+  "name": "Easy 2D OpenPose Editor",
+  "description": "A professional 2D OpenPose editor for creating ControlNet skeletons. Features manual editing, image overlay, and AI-powered pose detection using Gemini.",
+  "requestFramePermissions": []
+}
