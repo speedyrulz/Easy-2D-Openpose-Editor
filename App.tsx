@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [lockCanvas, setLockCanvas] = useState(false);
   const [keepPose, setKeepPose] = useState(false);
   const [limbThickness, setLimbThickness] = useState(8);
+  const [snapToEdges, setSnapToEdges] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   
   // History Stacks
@@ -312,6 +313,7 @@ const App: React.FC = () => {
      setLockCanvas(false);
      setKeepPose(false);
      setLimbThickness(8);
+     setSnapToEdges(false);
      fitToScreen(); // Reset editor zoom/scale
   }, [generateFittedKeypoints, fitToScreen]);
 
@@ -694,6 +696,62 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportBackground = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Fill background with #808080
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, size.width, size.height);
+
+    if (bgImage) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.save();
+        // Match CSS transform-origin: center
+        ctx.translate(size.width / 2, size.height / 2);
+        ctx.translate(bgTransform.x, bgTransform.y);
+        ctx.scale(bgTransform.scale, bgTransform.scale);
+        ctx.translate(-size.width / 2, -size.height / 2);
+
+        // Match CSS object-fit: contain
+        const imgAspect = img.width / img.height;
+        const canvasAspect = size.width / size.height;
+        let renderW, renderH, renderX, renderY;
+
+        if (imgAspect > canvasAspect) {
+          renderW = size.width;
+          renderH = size.width / imgAspect;
+          renderX = 0;
+          renderY = (size.height - renderH) / 2;
+        } else {
+          renderH = size.height;
+          renderW = size.height * imgAspect;
+          renderY = 0;
+          renderX = (size.width - renderW) / 2;
+        }
+
+        ctx.drawImage(img, renderX, renderY, renderW, renderH);
+        ctx.restore();
+
+        const link = document.createElement('a');
+        link.download = 'processed_background.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      };
+      img.src = bgImage;
+    } else {
+      // No image, just gray background
+      const link = document.createElement('a');
+      link.download = 'processed_background.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+  };
+
   return (
     <div className="flex h-screen w-screen bg-zinc-950 overflow-hidden">
       {/* Main Workspace */}
@@ -722,6 +780,7 @@ const App: React.FC = () => {
               onBgTransformChange={setBgTransform}
               onToggleConstraint={handleToggleConstraint}
               limbThickness={limbThickness}
+              snapToEdges={snapToEdges}
             />
           </div>
         </div>
@@ -780,6 +839,9 @@ const App: React.FC = () => {
         onSetEditorMode={setEditorMode}
         limbThickness={limbThickness}
         onLimbThicknessChange={setLimbThickness}
+        snapToEdges={snapToEdges}
+        onToggleSnapToEdges={() => setSnapToEdges(prev => !prev)}
+        onExportBackground={handleExportBackground}
       />
     </div>
   );

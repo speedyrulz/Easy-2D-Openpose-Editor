@@ -26,7 +26,8 @@ import {
   Image as ImageIcon,
   AlertOctagon,
   MousePointer2,
-  Move
+  Move,
+  Magnet
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -70,6 +71,9 @@ interface SidebarProps {
   onSetEditorMode: (mode: 'pose' | 'background') => void;
   limbThickness: number;
   onLimbThicknessChange: (val: number) => void;
+  snapToEdges: boolean;
+  onToggleSnapToEdges: () => void;
+  onExportBackground: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -112,7 +116,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   editorMode,
   onSetEditorMode,
   limbThickness,
-  onLimbThicknessChange
+  onLimbThicknessChange,
+  snapToEdges,
+  onToggleSnapToEdges,
+  onExportBackground
 }) => {
   const [scaleValue, setScaleValue] = useState(1);
   const [spinValue, setSpinValue] = useState(0);
@@ -185,21 +192,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         
         {/* Tool Mode Toggle */}
-        <div className="bg-zinc-800 p-1 rounded-lg flex gap-1">
-            <button 
-                onClick={() => onSetEditorMode('pose')}
-                className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-md transition-all ${editorMode === 'pose' ? 'bg-blue-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
-            >
-                <MousePointer2 size={14} /> Edit Pose
-            </button>
-            <button 
-                onClick={() => onSetEditorMode('background')}
-                className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-md transition-all ${editorMode === 'background' ? 'bg-blue-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
-                disabled={!hasImage}
-                title={!hasImage ? "Upload an image first" : "Move & Zoom Background"}
-            >
-                <Move size={14} /> Move BG
-            </button>
+        <div className="space-y-2">
+            <div className="bg-zinc-800 p-1 rounded-lg flex gap-1">
+                <button 
+                    onClick={() => onSetEditorMode('pose')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-md transition-all ${editorMode === 'pose' ? 'bg-blue-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+                >
+                    <MousePointer2 size={14} /> Edit Pose
+                </button>
+                <button 
+                    onClick={() => onSetEditorMode('background')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-medium rounded-md transition-all ${editorMode === 'background' ? 'bg-blue-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+                    disabled={!hasImage}
+                    title={!hasImage ? "Upload an image first" : "Move & Zoom Background"}
+                >
+                    <Move size={14} /> Move BG
+                </button>
+            </div>
+            
+            {editorMode === 'background' && hasImage && (
+                <div className="flex items-center gap-2 px-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <input 
+                        type="checkbox" 
+                        id="snapToEdges"
+                        checked={snapToEdges}
+                        onChange={onToggleSnapToEdges}
+                        className="rounded border-zinc-700 bg-zinc-800 text-blue-600 focus:ring-blue-500/50"
+                    />
+                    <label htmlFor="snapToEdges" className="text-xs text-zinc-400 cursor-pointer select-none flex items-center gap-1">
+                        <Magnet size={12} className={snapToEdges ? "text-blue-400" : "text-zinc-600"}/> Stick to Edges
+                    </label>
+                </div>
+            )}
         </div>
 
         {/* Canvas Settings */}
@@ -294,10 +318,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Button onClick={onExportPng} variant="primary" size="sm" icon={<Download size={14}/>}>
               Save PNG
             </Button>
-            <Button onClick={onExportJson} variant="primary" size="sm" className="bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500" icon={<FileJson size={14}/>}>
-              Save JSON
+            <Button onClick={onExportBackground} variant="secondary" size="sm" icon={<ImageIcon size={14}/>}>
+              Save BG
             </Button>
           </div>
+
+          <Button onClick={onExportJson} variant="primary" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500" icon={<FileJson size={14}/>}>
+              Save JSON
+          </Button>
 
           <div className="relative">
                 <input

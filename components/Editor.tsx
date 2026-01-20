@@ -22,6 +22,7 @@ interface EditorProps {
   onBgTransformChange: (newTransform: { x: number; y: number; scale: number }) => void;
   onToggleConstraint: (p1: number, p2: number) => void;
   limbThickness: number;
+  snapToEdges?: boolean;
 }
 
 export const Editor: React.FC<EditorProps> = ({
@@ -42,7 +43,8 @@ export const Editor: React.FC<EditorProps> = ({
   bgTransform,
   onBgTransformChange,
   onToggleConstraint,
-  limbThickness
+  limbThickness,
+  snapToEdges = false
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
@@ -133,21 +135,62 @@ export const Editor: React.FC<EditorProps> = ({
        onSkeletonDrag(dx, dy);
        setLastDragPos(pos);
     } else if (isDraggingBg && lastDragPos) {
-      // For background, use raw client delta but divide by scale to match view feel
-      // Actually, since we are transforming the image element, pixel for pixel translation corresponds to screen pixels if scale is 1.
-      // But the editor itself is scaled by `scale`. 
-      // To make the background move naturally with the mouse, we need to account for the editor scale.
+      // Calculate delta
       const dx = (e.clientX - lastDragPos.x) / scale;
       const dy = (e.clientY - lastDragPos.y) / scale;
       
+      let nextX = bgTransform.x + dx;
+      let nextY = bgTransform.y + dy;
+
+      if (snapToEdges) {
+         const threshold = 15; // Snap threshold in logical pixels
+         const s = bgTransform.scale;
+         const w = width;
+         const h = height;
+
+         // Helper to snap a coordinate value
+         const snapAxis = (currentVal: number, dimension: number) => {
+            let bestVal = currentVal;
+            let bestDist = threshold;
+
+            // Candidates
+            // 1. Center aligned (0)
+            if (Math.abs(currentVal) < bestDist) {
+                bestDist = Math.abs(currentVal);
+                bestVal = 0;
+            }
+            // 2. Left/Top edge aligned (Visual left at 0)
+            // Left edge position: w/2 + x - (w*s)/2. Target: 0.
+            // x = -(w/2) + (w*s)/2
+            const targetLeft = -(dimension / 2) + (dimension * s) / 2;
+            if (Math.abs(currentVal - targetLeft) < bestDist) {
+                bestDist = Math.abs(currentVal - targetLeft);
+                bestVal = targetLeft;
+            }
+            // 3. Right/Bottom edge aligned (Visual right at w)
+            // Right edge position: w/2 + x + (w*s)/2. Target: w.
+            // x = w - (w/2) - (w*s)/2 = w/2 - (w*s)/2
+            const targetRight = (dimension / 2) - (dimension * s) / 2;
+            if (Math.abs(currentVal - targetRight) < bestDist) {
+                bestDist = Math.abs(currentVal - targetRight);
+                bestVal = targetRight;
+            }
+
+            return bestVal;
+         };
+
+         nextX = snapAxis(nextX, w);
+         nextY = snapAxis(nextY, h);
+      }
+      
       onBgTransformChange({
         ...bgTransform,
-        x: bgTransform.x + dx,
-        y: bgTransform.y + dy
+        x: nextX,
+        y: nextY
       });
       setLastDragPos({ x: e.clientX, y: e.clientY });
     }
-  }, [draggingId, isDraggingSkeleton, isDraggingBg, lastDragPos, width, height, onKeypointMove, onSkeletonDrag, bgTransform, onBgTransformChange, scale]);
+  }, [draggingId, isDraggingSkeleton, isDraggingBg, lastDragPos, width, height, onKeypointMove, onSkeletonDrag, bgTransform, onBgTransformChange, scale, snapToEdges]);
 
   const handleMouseUp = useCallback(() => {
     setDraggingId(null);
