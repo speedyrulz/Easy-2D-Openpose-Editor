@@ -27,7 +27,9 @@ import {
   AlertOctagon,
   MousePointer2,
   Move,
-  Magnet
+  Magnet,
+  ArrowRight,
+  ArrowLeft
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -62,6 +64,8 @@ interface SidebarProps {
   onTransformEnd: () => void;
   onFlipHorizontal: () => void;
   onFlipVertical: () => void;
+  onMirrorLeftToRight: () => void;
+  onMirrorRightToLeft: () => void;
   bgOpacity: number;
   onBgOpacityChange: (val: number) => void;
   onToggleAllLock: () => void;
@@ -74,6 +78,8 @@ interface SidebarProps {
   snapToEdges: boolean;
   onToggleSnapToEdges: () => void;
   onExportBackground: () => void;
+  lockedJointMode: 'translate' | 'rotate';
+  onSetLockedJointMode: (mode: 'translate' | 'rotate') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -108,6 +114,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTransformEnd,
   onFlipHorizontal,
   onFlipVertical,
+  onMirrorLeftToRight,
+  onMirrorRightToLeft,
   bgOpacity,
   onBgOpacityChange,
   onToggleAllLock,
@@ -119,7 +127,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLimbThicknessChange,
   snapToEdges,
   onToggleSnapToEdges,
-  onExportBackground
+  onExportBackground,
+  lockedJointMode,
+  onSetLockedJointMode
 }) => {
   const [scaleValue, setScaleValue] = useState(1);
   const [spinValue, setSpinValue] = useState(0);
@@ -475,6 +485,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     Flip Y
                 </Button>
              </div>
+             
+             {/* Mirror Buttons */}
+             <div className="flex gap-2">
+                <Button 
+                    onClick={onMirrorLeftToRight} 
+                    variant="secondary" 
+                    size="sm" 
+                    className="flex-1 text-xs" 
+                    title="Make Right side match Left side"
+                >
+                    <span className="flex items-center gap-1"><ArrowRight size={14} className="text-zinc-400"/> L→R Mirror</span>
+                </Button>
+                <Button 
+                    onClick={onMirrorRightToLeft} 
+                    variant="secondary" 
+                    size="sm" 
+                    className="flex-1 text-xs" 
+                    title="Make Left side match Right side"
+                >
+                   <span className="flex items-center gap-1"><ArrowLeft size={14} className="text-zinc-400"/> R→L Mirror</span>
+                </Button>
+             </div>
 
              {/* Scale */}
              <div className="space-y-2">
@@ -585,6 +617,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Lock Distances</h3>
            </div>
            
+           <div className="bg-zinc-800 p-1 rounded-lg flex gap-1">
+              <button 
+                  onClick={() => onSetLockedJointMode('translate')}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium rounded-md transition-all ${lockedJointMode === 'translate' ? 'bg-blue-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+                  title="Move connected locked joints together"
+              >
+                  <Move size={12} /> Move Chain
+              </button>
+              <button 
+                  onClick={() => onSetLockedJointMode('rotate')}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium rounded-md transition-all ${lockedJointMode === 'rotate' ? 'bg-blue-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+                  title="Rotate joint around locked neighbors"
+              >
+                  <RotateCw size={12} /> Rotate Joint
+              </button>
+           </div>
+
            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
              {LIMB_PAIRS.map(([p1, p2], idx) => {
                const key = [p1, p2].sort((a, b) => a - b).join('-');

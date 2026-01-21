@@ -18,6 +18,7 @@ const App: React.FC = () => {
   const [bgOpacity, setBgOpacity] = useState(0.5);
   const [bgTransform, setBgTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [editorMode, setEditorMode] = useState<'pose' | 'background'>('pose');
+  const [lockedJointMode, setLockedJointMode] = useState<'translate' | 'rotate'>('translate');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTransforming, setIsTransforming] = useState(false); // New state for transform lock
@@ -187,11 +188,7 @@ const App: React.FC = () => {
          });
       }
 
-      // 2. Check if any OTHER node in the component is anchored
-      // If so, we cannot translate the group freely, so we fallback to rotation (constraint) mode
-      const hasAnchor = Array.from(connectedIds).some(cid => cid !== id && prev.find(k => k.id === cid)?.anchored);
-
-      if (!hasAnchor) {
+      if (lockedJointMode === 'translate') {
          // TRANSLATION MODE: Move the whole locked group
          const dx = x - sourceKp.x;
          const dy = y - sourceKp.y;
@@ -249,7 +246,7 @@ const App: React.FC = () => {
          );
       }
     });
-  }, [constraints]);
+  }, [constraints, lockedJointMode]);
 
   const handleSkeletonDrag = useCallback((dx: number, dy: number) => {
     setKeypoints(prev => prev.map(kp => ({
@@ -357,6 +354,7 @@ const App: React.FC = () => {
      setBgTransform({ x: 0, y: 0, scale: 1 }); // Reset bg transform
      setEditorMode('pose'); // Reset mode
      setConstraints({});
+     setLockedJointMode('translate');
      setKeypoints(generateFittedKeypoints(512, 512));
      setHistory({ past: [], future: [] });
      setLockCanvas(false);
@@ -582,6 +580,79 @@ const App: React.FC = () => {
       }));
     });
   }, [recordHistory, size.height]);
+
+  const handleMirrorLeftToRight = useCallback(() => {
+    recordHistory();
+    setKeypoints(prev => {
+        // Find axis: Prefer Neck (1), then Nose (0)
+        let axisX = size.width / 2;
+        const neck = prev.find(k => k.id === 1);
+        const nose = prev.find(k => k.id === 0);
+        
+        if (neck && neck.visible) axisX = neck.x;
+        else if (nose && nose.visible) axisX = nose.x;
+        // Could optionally fallback to midpoint of hips if Neck/Nose missing
+        
+        const newKps = [...prev];
+        const pairs = [
+             { r: 2, l: 5 }, { r: 3, l: 6 }, { r: 4, l: 7 },
+             { r: 8, l: 11 }, { r: 9, l: 12 }, { r: 10, l: 13 },
+             { r: 14, l: 15 }, { r: 16, l: 17 }
+        ];
+
+        pairs.forEach(({r, l}) => {
+            const leftKp = prev.find(k => k.id === l);
+            if (leftKp) {
+                const rightIndex = newKps.findIndex(k => k.id === r);
+                if (rightIndex !== -1) {
+                     newKps[rightIndex] = {
+                         ...newKps[rightIndex],
+                         x: axisX + (axisX - leftKp.x),
+                         y: leftKp.y,
+                         visible: leftKp.visible
+                     };
+                }
+            }
+        });
+        return newKps;
+    });
+  }, [recordHistory, size.width]);
+
+  const handleMirrorRightToLeft = useCallback(() => {
+    recordHistory();
+    setKeypoints(prev => {
+        // Find axis
+        let axisX = size.width / 2;
+        const neck = prev.find(k => k.id === 1);
+        const nose = prev.find(k => k.id === 0);
+        
+        if (neck && neck.visible) axisX = neck.x;
+        else if (nose && nose.visible) axisX = nose.x;
+
+        const newKps = [...prev];
+        const pairs = [
+             { r: 2, l: 5 }, { r: 3, l: 6 }, { r: 4, l: 7 },
+             { r: 8, l: 11 }, { r: 9, l: 12 }, { r: 10, l: 13 },
+             { r: 14, l: 15 }, { r: 16, l: 17 }
+        ];
+
+        pairs.forEach(({r, l}) => {
+            const rightKp = prev.find(k => k.id === r);
+            if (rightKp) {
+                const leftIndex = newKps.findIndex(k => k.id === l);
+                if (leftIndex !== -1) {
+                     newKps[leftIndex] = {
+                         ...newKps[leftIndex],
+                         x: axisX + (axisX - rightKp.x),
+                         y: rightKp.y,
+                         visible: rightKp.visible
+                     };
+                }
+            }
+        });
+        return newKps;
+    });
+  }, [recordHistory, size.width]);
 
   // Scaling & Rotation Logic
   const transformBaseRef = useRef<{ keypoints: Keypoint[], constraints: Record<string, number> } | null>(null);
@@ -894,6 +965,8 @@ const App: React.FC = () => {
         onTransformEnd={handleTransformEnd}
         onFlipHorizontal={handleFlipHorizontal}
         onFlipVertical={handleFlipVertical}
+        onMirrorLeftToRight={handleMirrorLeftToRight}
+        onMirrorRightToLeft={handleMirrorRightToLeft}
         bgOpacity={bgOpacity}
         onBgOpacityChange={setBgOpacity}
         onToggleAllLock={handleToggleAllLock}
@@ -906,6 +979,8 @@ const App: React.FC = () => {
         snapToEdges={snapToEdges}
         onToggleSnapToEdges={() => setSnapToEdges(prev => !prev)}
         onExportBackground={handleExportBackground}
+        lockedJointMode={lockedJointMode}
+        onSetLockedJointMode={setLockedJointMode}
       />
     </div>
   );
