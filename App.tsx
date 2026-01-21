@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [size, setSize] = useState({ width: 512, height: 512 });
   const [scale, setScale] = useState(1);
   const [bgImage, setBgImage] = useState<string | null>(null);
+  const [bgAspectRatio, setBgAspectRatio] = useState<number | null>(null); // New state to track image aspect
   const [bgOpacity, setBgOpacity] = useState(0.5);
   const [bgTransform, setBgTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [editorMode, setEditorMode] = useState<'pose' | 'background'>('pose');
@@ -162,51 +163,91 @@ const App: React.FC = () => {
 
   const handleKeypointMove = useCallback((id: number, x: number, y: number) => {
     setKeypoints(prev => {
-      // Find active constraints for this point
-      const activeConstraints = Object.entries(constraints).filter(([key]) => {
-        const [p1, p2] = key.split('-').map(Number);
-        return p1 === id || p2 === id;
-      });
+      const sourceKp = prev.find(k => k.id === id);
+      if (!sourceKp) return prev;
 
-      let nextX = x;
-      let nextY = y;
-
-      // Apply constraints
-      if (activeConstraints.length > 0) {
-        let sumX = 0;
-        let sumY = 0;
-        let count = 0;
-
-        activeConstraints.forEach(([key, targetDist]) => {
-          const [p1, p2] = key.split('-').map(Number);
-          const otherId = p1 === id ? p2 : p1;
-          const otherKp = prev.find(k => k.id === otherId);
-          
-          if (otherKp) {
-            const dx = x - otherKp.x;
-            const dy = y - otherKp.y;
-            const currentDist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (currentDist > 0) {
-              const scale = (targetDist as number) / currentDist;
-              const constrainedX = otherKp.x + dx * scale;
-              const constrainedY = otherKp.y + dy * scale;
-              sumX += constrainedX;
-              sumY += constrainedY;
-              count++;
+      // 1. Identify connected component via locked constraints
+      const connectedIds = new Set<number>();
+      const queue = [id];
+      connectedIds.add(id);
+      
+      let head = 0;
+      while(head < queue.length) {
+         const currId = queue[head++];
+         // Iterate constraints to find neighbors
+         Object.keys(constraints).forEach(key => {
+            const [p1, p2] = key.split('-').map(Number);
+            if (p1 === currId || p2 === currId) {
+               const neighbor = p1 === currId ? p2 : p1;
+               if (!connectedIds.has(neighbor)) {
+                  connectedIds.add(neighbor);
+                  queue.push(neighbor);
+               }
             }
-          }
-        });
-
-        if (count > 0) {
-          nextX = sumX / count;
-          nextY = sumY / count;
-        }
+         });
       }
 
-      return prev.map(kp => 
-        kp.id === id ? { ...kp, x: nextX, y: nextY } : kp
-      );
+      // 2. Check if any OTHER node in the component is anchored
+      // If so, we cannot translate the group freely, so we fallback to rotation (constraint) mode
+      const hasAnchor = Array.from(connectedIds).some(cid => cid !== id && prev.find(k => k.id === cid)?.anchored);
+
+      if (!hasAnchor) {
+         // TRANSLATION MODE: Move the whole locked group
+         const dx = x - sourceKp.x;
+         const dy = y - sourceKp.y;
+         
+         return prev.map(kp => {
+            if (connectedIds.has(kp.id)) {
+               return { ...kp, x: kp.x + dx, y: kp.y + dy };
+            }
+            return kp;
+         });
+      } else {
+         // ROTATION/CONSTRAINT MODE
+         const activeConstraints = Object.entries(constraints).filter(([key]) => {
+            const [p1, p2] = key.split('-').map(Number);
+            return p1 === id || p2 === id;
+         });
+
+         let nextX = x;
+         let nextY = y;
+
+         if (activeConstraints.length > 0) {
+            let sumX = 0;
+            let sumY = 0;
+            let count = 0;
+
+            activeConstraints.forEach(([key, targetDist]) => {
+               const [p1, p2] = key.split('-').map(Number);
+               const otherId = p1 === id ? p2 : p1;
+               const otherKp = prev.find(k => k.id === otherId);
+               
+               if (otherKp) {
+                  const dx = x - otherKp.x;
+                  const dy = y - otherKp.y;
+                  const currentDist = Math.sqrt(dx * dx + dy * dy);
+                  
+                  if (currentDist > 0) {
+                     const scale = (targetDist as number) / currentDist;
+                     const constrainedX = otherKp.x + dx * scale;
+                     const constrainedY = otherKp.y + dy * scale;
+                     sumX += constrainedX;
+                     sumY += constrainedY;
+                     count++;
+                  }
+               }
+            });
+
+            if (count > 0) {
+               nextX = sumX / count;
+               nextY = sumY / count;
+            }
+         }
+
+         return prev.map(kp => 
+            kp.id === id ? { ...kp, x: nextX, y: nextY } : kp
+         );
+      }
     });
   }, [constraints]);
 
@@ -311,6 +352,7 @@ const App: React.FC = () => {
      // Reset completely
      setSize({ width: 512, height: 512 });
      setBgImage(null);
+     setBgAspectRatio(null);
      setBgOpacity(0.5);
      setBgTransform({ x: 0, y: 0, scale: 1 }); // Reset bg transform
      setEditorMode('pose'); // Reset mode
@@ -436,6 +478,7 @@ const App: React.FC = () => {
         img.onload = () => {
           let targetWidth = size.width;
           let targetHeight = size.height;
+          setBgAspectRatio(img.width / img.height);
 
           if (!lockCanvas) {
             targetWidth = img.width;
@@ -724,31 +767,35 @@ const App: React.FC = () => {
     if (bgImage) {
       const img = new Image();
       img.onload = () => {
-        ctx.save();
-        // Match CSS transform-origin: center
-        ctx.translate(size.width / 2, size.height / 2);
-        ctx.translate(bgTransform.x, bgTransform.y);
-        ctx.scale(bgTransform.scale, bgTransform.scale);
-        ctx.translate(-size.width / 2, -size.height / 2);
-
-        // Match CSS object-fit: contain
+        // Calculate the base dimensions as they appear in "object-fit: contain"
+        // before any user transform is applied.
+        let baseW = size.width;
+        let baseH = size.height;
         const imgAspect = img.width / img.height;
         const canvasAspect = size.width / size.height;
-        let renderW, renderH, renderX, renderY;
 
         if (imgAspect > canvasAspect) {
-          renderW = size.width;
-          renderH = size.width / imgAspect;
-          renderX = 0;
-          renderY = (size.height - renderH) / 2;
+          // Wider than canvas: width fits, height adapts
+          baseW = size.width;
+          baseH = size.width / imgAspect;
         } else {
-          renderH = size.height;
-          renderW = size.height * imgAspect;
-          renderY = 0;
-          renderX = (size.width - renderW) / 2;
+          // Taller than canvas: height fits, width adapts
+          baseH = size.height;
+          baseW = size.height * imgAspect;
         }
 
-        ctx.drawImage(img, renderX, renderY, renderW, renderH);
+        ctx.save();
+        
+        // 1. Move origin to center of canvas
+        ctx.translate(size.width / 2, size.height / 2);
+        
+        // 2. Apply user-defined transform (pan and zoom)
+        ctx.translate(bgTransform.x, bgTransform.y);
+        ctx.scale(bgTransform.scale, bgTransform.scale);
+        
+        // 3. Draw image centered at the current origin
+        ctx.drawImage(img, -baseW / 2, -baseH / 2, baseW, baseH);
+        
         ctx.restore();
 
         const link = document.createElement('a');
@@ -779,6 +826,7 @@ const App: React.FC = () => {
               width={size.width}
               height={size.height}
               backgroundImage={bgImage}
+              bgAspectRatio={bgAspectRatio}
               keypoints={keypoints}
               onKeypointMove={handleKeypointMove}
               onDragStart={handleDragStart}
@@ -820,6 +868,7 @@ const App: React.FC = () => {
         onImportJson={handleImportJson}
         onClearImage={() => {
             setBgImage(null);
+            setBgAspectRatio(null);
             setBgTransform({ x: 0, y: 0, scale: 1 });
         }}
         isProcessing={isProcessing}

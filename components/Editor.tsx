@@ -7,6 +7,7 @@ interface EditorProps {
   width: number;
   height: number;
   backgroundImage: string | null;
+  bgAspectRatio: number | null;
   keypoints: Keypoint[];
   onKeypointMove: (id: number, x: number, y: number) => void;
   onDragStart?: () => void;
@@ -30,6 +31,7 @@ export const Editor: React.FC<EditorProps> = ({
   width,
   height,
   backgroundImage,
+  bgAspectRatio,
   keypoints,
   onKeypointMove,
   onDragStart,
@@ -143,44 +145,80 @@ export const Editor: React.FC<EditorProps> = ({
       let nextY = bgTransform.y + dy;
 
       if (snapToEdges) {
+         // Determine base dimensions of the image inside the canvas (before transform)
+         // This emulates 'object-fit: contain' logic
+         let baseW = width;
+         let baseH = height;
+         
+         if (bgAspectRatio) {
+            const canvasAspect = width / height;
+            if (bgAspectRatio > canvasAspect) {
+               // Image is wider than canvas relative to aspect
+               baseW = width;
+               baseH = width / bgAspectRatio;
+            } else {
+               // Image is taller
+               baseH = height;
+               baseW = height * bgAspectRatio;
+            }
+         }
+
          const threshold = 15; // Snap threshold in logical pixels
          const s = bgTransform.scale;
-         const w = width;
-         const h = height;
-
+         const currentW = baseW * s;
+         const currentH = baseH * s;
+         
          // Helper to snap a coordinate value
-         const snapAxis = (currentVal: number, dimension: number) => {
-            let bestVal = currentVal;
-            let bestDist = threshold;
-
-            // Candidates
-            // 1. Center aligned (0)
-            if (Math.abs(currentVal) < bestDist) {
-                bestDist = Math.abs(currentVal);
-                bestVal = 0;
-            }
-            // 2. Left/Top edge aligned (Visual left at 0)
-            // Left edge position: w/2 + x - (w*s)/2. Target: 0.
-            // x = -(w/2) + (w*s)/2
-            const targetLeft = -(dimension / 2) + (dimension * s) / 2;
-            if (Math.abs(currentVal - targetLeft) < bestDist) {
-                bestDist = Math.abs(currentVal - targetLeft);
-                bestVal = targetLeft;
-            }
-            // 3. Right/Bottom edge aligned (Visual right at w)
-            // Right edge position: w/2 + x + (w*s)/2. Target: w.
-            // x = w - (w/2) - (w*s)/2 = w/2 - (w*s)/2
-            const targetRight = (dimension / 2) - (dimension * s) / 2;
-            if (Math.abs(currentVal - targetRight) < bestDist) {
-                bestDist = Math.abs(currentVal - targetRight);
-                bestVal = targetRight;
-            }
-
-            return bestVal;
+         // The image is centered at (width/2 + x, height/2 + y)
+         // We calculate the edges of the image based on this center
+         const snapX = (valX: number) => {
+             const centerX = width / 2 + valX;
+             const leftEdge = centerX - currentW / 2;
+             const rightEdge = centerX + currentW / 2;
+             
+             // Snap Center to Center
+             if (Math.abs(valX) < threshold) return 0;
+             
+             // Snap Left Edge to Canvas Left (0)
+             if (Math.abs(leftEdge) < threshold) {
+                 // centerX = currentW / 2
+                 // width/2 + x = currentW / 2  => x = currentW/2 - width/2
+                 return currentW / 2 - width / 2;
+             }
+             
+             // Snap Right Edge to Canvas Right (width)
+             if (Math.abs(rightEdge - width) < threshold) {
+                 // centerX + currentW/2 = width
+                 // width/2 + x + currentW/2 = width => x = width/2 - currentW/2
+                 return width / 2 - currentW / 2;
+             }
+             
+             return valX;
          };
 
-         nextX = snapAxis(nextX, w);
-         nextY = snapAxis(nextY, h);
+         const snapY = (valY: number) => {
+             const centerY = height / 2 + valY;
+             const topEdge = centerY - currentH / 2;
+             const bottomEdge = centerY + currentH / 2;
+
+             // Snap Center to Center
+             if (Math.abs(valY) < threshold) return 0;
+
+             // Snap Top Edge to Canvas Top (0)
+             if (Math.abs(topEdge) < threshold) {
+                 return currentH / 2 - height / 2;
+             }
+             
+             // Snap Bottom Edge to Canvas Bottom (height)
+             if (Math.abs(bottomEdge - height) < threshold) {
+                 return height / 2 - currentH / 2;
+             }
+
+             return valY;
+         };
+
+         nextX = snapX(nextX);
+         nextY = snapY(nextY);
       }
       
       onBgTransformChange({
@@ -190,7 +228,7 @@ export const Editor: React.FC<EditorProps> = ({
       });
       setLastDragPos({ x: e.clientX, y: e.clientY });
     }
-  }, [draggingId, isDraggingSkeleton, isDraggingBg, lastDragPos, width, height, onKeypointMove, onSkeletonDrag, bgTransform, onBgTransformChange, scale, snapToEdges]);
+  }, [draggingId, isDraggingSkeleton, isDraggingBg, lastDragPos, width, height, onKeypointMove, onSkeletonDrag, bgTransform, onBgTransformChange, scale, snapToEdges, bgAspectRatio]);
 
   const handleMouseUp = useCallback(() => {
     setDraggingId(null);
