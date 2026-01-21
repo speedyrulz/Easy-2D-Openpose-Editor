@@ -340,7 +340,8 @@ export const Editor: React.FC<EditorProps> = ({
             className="w-full h-full object-contain"
             style={{ 
               opacity: bgOpacity,
-              transform: `translate(${bgTransform.x}px, ${bgTransform.y}px) scale(${bgTransform.scale})`,
+              // IMPORTANT: Scale the translation by the zoom scale because the container size is scaled
+              transform: `translate(${bgTransform.x * scale}px, ${bgTransform.y * scale}px) scale(${bgTransform.scale})`,
               transformOrigin: 'center',
               transition: isDraggingBg ? 'none' : 'transform 0.1s ease-out'
             }}

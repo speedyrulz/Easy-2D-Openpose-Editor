@@ -464,7 +464,8 @@ const App: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!keepPose) recordHistory();
+      // Record history in all cases (reset or re-center)
+      recordHistory();
 
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -487,6 +488,38 @@ const App: React.FC = () => {
           if (!keepPose) {
             setKeypoints(generateFittedKeypoints(targetWidth, targetHeight));
             setConstraints({});
+          } else {
+             // Center existing pose on new canvas
+             setKeypoints(prev => {
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                let count = 0;
+                prev.forEach(kp => {
+                   if (kp.visible) {
+                     minX = Math.min(minX, kp.x);
+                     maxX = Math.max(maxX, kp.x);
+                     minY = Math.min(minY, kp.y);
+                     maxY = Math.max(maxY, kp.y);
+                     count++;
+                   }
+                });
+                
+                if (count === 0) return prev;
+
+                const currentCenterX = (minX + maxX) / 2;
+                const currentCenterY = (minY + maxY) / 2;
+                
+                const targetCenterX = targetWidth / 2;
+                const targetCenterY = targetHeight / 2;
+
+                const dx = targetCenterX - currentCenterX;
+                const dy = targetCenterY - currentCenterY;
+
+                return prev.map(kp => ({
+                   ...kp,
+                   x: kp.x + dx,
+                   y: kp.y + dy
+                }));
+             });
           }
         };
         img.src = result;
