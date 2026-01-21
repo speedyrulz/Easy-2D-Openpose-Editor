@@ -126,10 +126,8 @@ export const Editor: React.FC<EditorProps> = ({
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (draggingId !== null) {
       const pos = getMousePosition(e);
-      // Constrain to bounds
-      const clampedX = Math.max(0, Math.min(width, pos.x));
-      const clampedY = Math.max(0, Math.min(height, pos.y));
-      onKeypointMove(draggingId, clampedX, clampedY);
+      // No clamping to bounds to allow moving joints off-canvas
+      onKeypointMove(draggingId, pos.x, pos.y);
     } else if (isDraggingSkeleton && lastDragPos) {
        const pos = getMousePosition(e);
        const dx = pos.x - lastDragPos.x;
@@ -273,7 +271,7 @@ export const Editor: React.FC<EditorProps> = ({
 
   return (
     <div 
-      className="relative shadow-2xl bg-black border border-gray-800 overflow-hidden select-none"
+      className="relative shadow-2xl bg-black border border-gray-800 select-none"
       style={{ 
         width: width * scale, 
         height: height * scale,
@@ -316,7 +314,7 @@ export const Editor: React.FC<EditorProps> = ({
       <svg 
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className="absolute inset-0 w-full h-full"
+        className="absolute inset-0 w-full h-full overflow-visible"
         style={{ pointerEvents: editorMode === 'background' ? 'none' : 'auto' }}
       >
         {/* Drag Path Indicator - Rendered below limbs/joints */}

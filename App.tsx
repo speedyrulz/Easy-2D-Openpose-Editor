@@ -21,7 +21,7 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTransforming, setIsTransforming] = useState(false); // New state for transform lock
   const [lockCanvas, setLockCanvas] = useState(false);
-  const [keepPose, setKeepPose] = useState(false);
+  const [keepPose, setKeepPose] = useState(true);
   const [limbThickness, setLimbThickness] = useState(8);
   const [snapToEdges, setSnapToEdges] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -318,7 +318,7 @@ const App: React.FC = () => {
      setKeypoints(generateFittedKeypoints(512, 512));
      setHistory({ past: [], future: [] });
      setLockCanvas(false);
-     setKeepPose(false);
+     setKeepPose(true); // Default to keep pose on reset
      setLimbThickness(8);
      setSnapToEdges(false);
      fitToScreen(); // Reset editor zoom/scale
